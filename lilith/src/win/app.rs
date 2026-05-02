@@ -4,7 +4,6 @@ use winit::{ application::ApplicationHandler, event_loop::ActiveEventLoop, windo
 use pollster;
 
 use crate::mygpu::State;
-
 pub struct AppMain {
     pub state: Option<State>,
 }
@@ -19,10 +18,17 @@ impl ApplicationHandler for AppMain {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        let Some(state) = self.state.as_mut() else { return };
         match event {
             WindowEvent::CloseRequested => {
                 println!("LiLith engine");
                 event_loop.exit();
+            }
+            WindowEvent::Resized(physical_size) => {
+                state.resize(physical_size.width, physical_size.height);
+            }
+            WindowEvent::RedrawRequested => {
+                state.render().expect("render failed");
             }
             _ => {},
         }

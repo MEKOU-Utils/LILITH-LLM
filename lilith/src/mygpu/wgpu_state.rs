@@ -7,8 +7,15 @@
     ///import群
     use std::{ sync::Arc};
     use anyhow::Ok;
-    use wgpu::{Dx12BackendOptions, GlBackendOptions, NoopBackendOptions };
-    use winit::window::Window;
+    use wgpu::{
+        Dx12BackendOptions,
+        GlBackendOptions,
+        NoopBackendOptions,
+        PipelineLayoutDescriptor,
+
+    };
+    use winit::{event_loop::ActiveEventLoop, keyboard::KeyCode, window::{ActivationToken, Window}};
+
 
     /* */
     /*
@@ -28,6 +35,7 @@ pub struct State {
     config: wgpu::SurfaceConfiguration,
     is_surface_configured: bool,
     window: Arc<Window>,
+    render_pipeline: wgpu::RenderPipeline,
 }
 
 
@@ -96,13 +104,53 @@ impl State {
 
         surface.configure(&device, &config);
 
+        // State::new の中に追加
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("Shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shader.wgsl").into()),
+        });
+
+        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Render Pipeline Layout"),
+            bind_group_layouts: &[],
+            immediate_size: 0,
+        });
+
+        let render_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Render Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some("vs_main"),
+                buffers: &[], // 頂点バッファを自前で作るまでは空でOK
+                compilation_options: Default::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some("fs_main"),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: Default::default(),
+            }),
+            // ... その他（ラスタライザ設定など）
+            primitive: wgpu::PrimitiveState::default(),
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState::default(),
+            multiview_mask: None,
+            cache: None,
+        });
+
         Ok(Self {
             surface,
             device,
             queue,
             config,
             is_surface_configured: true,
-            window
+            window,
+            render_pipeline,
         })
     }
 
@@ -115,5 +163,81 @@ impl State {
         }
     }
 
+    pub fn handle_key(&self, event_loop: &ActiveEventLoop, code: KeyCode, is_pressed: bool) {
+        match (code, is_pressed) {
+            (KeyCode::Escape, true) => event_loop.exit(),
+            _ => {}
+        }
+    }
+
+    pub fn update() {
+        todo!();
+    }
+
+    pub fn render(&mut self) -> anyhow::Result<()> {
+        self.window.request_redraw();
+
+        if !self.is_surface_configured {
+            return Ok(());
+        }
+            let frame = match self.surface.get_current_texture() {
+            wgpu::CurrentSurfaceTexture::Success(surface_texture) => surface_texture,
+            wgpu::CurrentSurfaceTexture::Suboptimal(surface_texture) => {
+                self.surface.configure(&self.device, &self.config);
+                surface_texture
+            }
+            wgpu::CurrentSurfaceTexture::Timeout
+            | wgpu::CurrentSurfaceTexture::Occluded
+            | wgpu::CurrentSurfaceTexture::Validation => {
+                // Skip this frame
+                return Ok(());
+            }
+            wgpu::CurrentSurfaceTexture::Outdated => {
+                self.surface.configure(&self.device, &self.config);
+                return Ok(());
+            }
+            wgpu::CurrentSurfaceTexture::Lost => {
+                // You could recreate the devices and all resources
+                // created with it here, but we'll just bail
+                anyhow::bail!("Lost device");
+            }
+        };
+
+        let view = frame.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
+
+        {
+            // ここで「何を描くか」のブロックを開始
+            let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    depth_slice: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color { r: 0.1, g: 0.2, b: 0.3, a: 1.0 }), // 背景色
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+                multiview_mask: None,
+            });
+
+            // さっき作ったパイプラインをセット！
+            render_pass.set_pipeline(&self.render_pipeline);
+            // 3つの頂点（三角形）を描画しろ！という命令
+            render_pass.draw(0..3, 0..1); 
+        } // ここで render_pass がドロップされ、命令が確定する
+
+        // 命令をベルトコンベヤー（Queue）に流す
+        self.queue.submit(std::iter::once(encoder.finish()));
+        frame.present();
+
+        Ok(())
+    }
 
 }

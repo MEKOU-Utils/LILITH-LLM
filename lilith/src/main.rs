@@ -1,10 +1,11 @@
-mod mygpu;
 use anyhow::Ok;
 use winit::event_loop::{ EventLoop};
 
 mod win;
 use win::AppMain;
 
+mod mygpu;
+use mygpu::State;
 
 fn main() -> anyhow::Result<()> {
     
