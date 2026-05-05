@@ -1,12 +1,41 @@
 [package]
-name = "lilith"
+name    = "lilith"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+name    = "lilith_lib"
+path    = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "lilith"
+path = "src/main.rs"
+
+[features]
+default = []
+llm     = []       # LLM学習ループを含める
+wasm-ui = []       # WASM対象: UI+CNN のみ (LLMなし)
+
 [dependencies]
-anyhow = "1.0.102"
-pollster = "0.4.0"
-rand = { version = "0.8.5", features = ["small_rng"] }
-thiserror = "2.0.18"
-wgpu = "29.0.3"
-winit = "0.30.13"
+ab_glyph   = "0.2"
+anyhow     = "1.0"
+bytemuck   = { version = "1", features = ["derive"] }
+env_logger = "0.11"
+gltf       = { version = "1", features = ["KHR_lights_punctual"] }
+pollster   = "0.4"
+rodio = "0.22.2"
+wgpu       = { version = "29.0.3", features = ["webgl"] }
+winit      = "0.30"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen         = "0.2"
+wasm-bindgen-futures = "0.4"
+console_error_panic_hook = "0.1"
+web-sys = { version = "0.3", features = [
+    "Window",
+    "Document",
+    "HtmlCanvasElement",
+    "Navigator",
+    "Performance",
+] }

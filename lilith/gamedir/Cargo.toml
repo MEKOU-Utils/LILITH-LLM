@@ -1,0 +1,12 @@
+[package]
+name    = "gamedir"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wgpu       = { version = "29.0.3", features = ["webgl"] }
+winit      = "0.30"
+bytemuck   = { version = "1", features = ["derive"] }
+anyhow     = "1.0"
+env_logger = "0.11"
+pollster   = "0.4"
